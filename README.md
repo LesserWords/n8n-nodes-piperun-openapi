@@ -1,14 +1,14 @@
-# n8n-nodes-piperun
+# n8n-nodes-piperun-openapi
 
 PipeRun CRM integration for n8n.
 
-This package includes a declarative `Piperun` node generated from the PipeRun OpenAPI schema, plus credential support for token authentication.
+This repository is a conversion of PipeRun's official OpenAPI specification into an n8n node, with credential support for token authentication.
+
+For npm release, this package needs to be published under a different name because `n8n-nodes-piperun` is already taken.
 
 ## Included Nodes
 
 - `Piperun` (`nodes/Piperun/`)
-- `GithubIssues` (`nodes/GithubIssues/`) - example node from starter
-- `Example` (`nodes/Example/`) - starter boilerplate node
 
 ## Authentication
 
@@ -50,7 +50,7 @@ npm run lint
 
 ## Package Metadata
 
-- Package: `n8n-nodes-piperun`
+- Package: use a different npm package name (`n8n-nodes-piperun` is already claimed)
 - Homepage: [https://github.com/LesserWords/n8n-nodes-piperun](https://github.com/LesserWords/n8n-nodes-piperun)
 - License: MIT
 
