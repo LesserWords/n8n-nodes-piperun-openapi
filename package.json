@@ -1,19 +1,18 @@
 {
-	"name": "n8n-nodes-<...>",
-	"version": "0.1.0",
-	"description": "",
+	"name": "n8n-nodes-piperun-openapi",
+	"version": "0.1.2",
+	"description": "PipeRun CRM API integration for n8n",
 	"license": "MIT",
-	"homepage": "",
+	"homepage": "https://github.com/LesserWords/n8n-nodes-piperun-openapi",
 	"keywords": [
 		"n8n-community-node-package"
 	],
 	"author": {
-		"name": "",
-		"email": ""
+		"name": "LesserWords"
 	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/<...>/n8n-nodes-<...>.git"
+		"url": "https://github.com/LesserWords/n8n-nodes-piperun-openapi.git"
 	},
 	"scripts": {
 		"build": "n8n-node build",
@@ -22,7 +21,8 @@
 		"lint": "n8n-node lint",
 		"lint:fix": "n8n-node lint --fix",
 		"release": "n8n-node release",
-		"prepublishOnly": "n8n-node prerelease"
+		"prepublishOnly": "n8n-node prerelease",
+		"getPiperunSchema": "node -e \"fetch('https://developers.pipe.run/openapi/686d5ab389846000619e863f').then(r => r.text()).then(t => require('fs').writeFileSync('nodes/Piperun/Piperun.openapi.json', t))"
 	},
 	"files": [
 		"dist"
@@ -31,12 +31,10 @@
 		"n8nNodesApiVersion": 1,
 		"strict": true,
 		"credentials": [
-			"dist/credentials/GithubIssuesApi.credentials.js",
-			"dist/credentials/GithubIssuesOAuth2Api.credentials.js"
+			"dist/credentials/PiperunApi.credentials.js"
 		],
 		"nodes": [
-			"dist/nodes/GithubIssues/GithubIssues.node.js",
-			"dist/nodes/Example/Example.node.js"
+			"dist/nodes/Piperun/Piperun.node.js"
 		]
 	},
 	"devDependencies": {
@@ -48,5 +46,12 @@
 	},
 	"peerDependencies": {
 		"n8n-workflow": "*"
+	},
+	"dependencies": {
+		"@devlikeapro/n8n-openapi-node": "^0.1.4"
+	},
+	"volta": {
+		"node": "25.9.0",
+		"npm": "11.13.0"
 	}
 }
