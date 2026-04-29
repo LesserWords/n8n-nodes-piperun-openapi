@@ -48,6 +48,18 @@ npm run build
 npm run lint
 ```
 
+### Bump version 
+
+```bash
+npm version (patch|minor|major)
+```
+
+### Deploy bypassing n8n validation
+
+```bash
+npm publish --access public --ignore-scripts
+```
+
 ## Package Metadata
 
 - Package: use a different npm package name (`n8n-nodes-piperun` is already claimed)
