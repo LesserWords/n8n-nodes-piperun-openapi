@@ -51,7 +51,7 @@
 		"@devlikeapro/n8n-openapi-node": "^0.1.4"
 	},
 	"volta": {
-		"node": "25.9.0",
+		"node": "22.22.2",
 		"npm": "11.13.0"
 	}
 }
