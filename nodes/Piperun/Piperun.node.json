@@ -1,12 +1,12 @@
 {
-	"node": "n8n-nodes-piperun",
+	"node": "n8n-nodes-piperun-openapi",
 	"nodeVersion": "1.0",
 	"codexVersion": "1.0",
 	"categories": ["Development", "Developer Tools"],
 	"resources": {
 		"primaryDocumentation": [
 			{
-				"url": "https://github.com/LesserWords/n8n-nodes-piperun"
+				"url": "https://github.com/LesserWords/n8n-nodes-piperun-openapi"
 			}
 		]
 	}

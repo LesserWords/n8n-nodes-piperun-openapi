@@ -3,7 +3,7 @@
 	"version": "0.1.2",
 	"description": "PipeRun CRM API integration for n8n",
 	"license": "MIT",
-	"homepage": "https://github.com/LesserWords/n8n-nodes-piperun",
+	"homepage": "https://github.com/LesserWords/n8n-nodes-piperun-openapi",
 	"keywords": [
 		"n8n-community-node-package"
 	],
@@ -12,7 +12,7 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/LesserWords/n8n-nodes-piperun.git"
+		"url": "https://github.com/LesserWords/n8n-nodes-piperun-openapi.git"
 	},
 	"scripts": {
 		"build": "n8n-node build",

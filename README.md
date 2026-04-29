@@ -51,7 +51,7 @@ npm run lint
 ## Package Metadata
 
 - Package: use a different npm package name (`n8n-nodes-piperun` is already claimed)
-- Homepage: [https://github.com/LesserWords/n8n-nodes-piperun](https://github.com/LesserWords/n8n-nodes-piperun)
+- Homepage: [https://github.com/LesserWords/n8n-nodes-piperun-openapi](https://github.com/LesserWords/n8n-nodes-piperun-openapi)
 - License: MIT
 
 ## Notes
