@@ -54,12 +54,6 @@ npm run lint
 npm version (patch|minor|major)
 ```
 
-### Deploy bypassing n8n validation
-
-```bash
-npm publish --access public --ignore-scripts
-```
-
 ## Package Metadata
 
 - Package: use a different npm package name (`n8n-nodes-piperun` is already claimed)
@@ -69,4 +63,5 @@ npm publish --access public --ignore-scripts
 ## Notes
 
 - The `Piperun` node uses OpenAPI-driven property generation (`@devlikeapro/n8n-openapi-node`).
-- The repository still contains starter example nodes (`Example`, `GithubIssues`) for reference.
+
+⚠️ Not official, i made this because i needed it.

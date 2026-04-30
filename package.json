@@ -22,7 +22,8 @@
 		"lint:fix": "n8n-node lint --fix",
 		"release": "n8n-node release",
 		"prepublishOnly": "n8n-node prerelease",
-		"getPiperunSchema": "node -e \"fetch('https://developers.pipe.run/openapi/686d5ab389846000619e863f').then(r => r.text()).then(t => require('fs').writeFileSync('nodes/Piperun/Piperun.openapi.json', t))"
+		"getPiperunSchema": "node ./scripts/getPiperunSchema.mjs",
+		"organizePiperunSchemaPaths": "node ./scripts/organizePiperunSchemaPaths.mjs"
 	},
 	"files": [
 		"dist"

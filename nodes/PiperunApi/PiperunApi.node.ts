@@ -2,7 +2,7 @@
 import { N8NPropertiesBuilder, N8NPropertiesBuilderConfig } from '@devlikeapro/n8n-openapi-node';
 import { NodeConnectionTypes, type INodeType, type INodeTypeDescription } from 'n8n-workflow';
 
-import * as doc from './Piperun.openapi.json';
+import * as doc from '../../schemas/latest.Piperun.openapi.json';
 
 const config: N8NPropertiesBuilderConfig = {};
 const parser = new N8NPropertiesBuilder(doc, config);
