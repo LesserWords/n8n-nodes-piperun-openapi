@@ -1,0 +1,312 @@
+{
+  "name": "PipeRun — Leads por Origem + CAC",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "6a3e2064-2102-4734-b64c-b9c5bf150f0d",
+      "name": "Weekly Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "a1b2c3d4-0001-0000-0000-00000000000a",
+              "leftValue": "={{ new Date().getDate() }}",
+              "rightValue": 1,
+              "operator": {
+                "type": "number",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "efb880d6-328c-4f28-bb8d-6284a7920c43",
+      "name": "Skip if 1st of Month",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        208,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 1 * *"
+            }
+          ]
+        }
+      },
+      "id": "c61ca372-6ba5-46bb-abb2-5b4a85f337de",
+      "name": "Monthly Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Detects if monthly (day=1) or weekly from which trigger fired\nconst now = new Date();\nconst day = now.getDate();\nconst isMonthly = day === 1;\n\nlet startDate, endDate;\nif (isMonthly) {\n  const y = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();\n  const m = now.getMonth() === 0 ? 11 : now.getMonth() - 1;\n  startDate = new Date(y, m, 1);\n  endDate = new Date(y, m + 1, 0);\n} else {\n  endDate = new Date(now);\n  startDate = new Date(now);\n  startDate.setDate(now.getDate() - 7);\n}\n\nconst fmt = d => d.toISOString().split('T')[0];\n\nreturn [{ json: {\n  period: isMonthly ? 'Mensal' : 'Semanal',\n  start_date: fmt(startDate),\n  end_date: fmt(endDate)\n}}];"
+      },
+      "id": "ac560fa9-803f-4d4f-9645-62d9d5168aa8",
+      "name": "Set Period",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ⚠️ EDIT: map your origin_id → marketing investment for the period\n// Get origin IDs from PipeRun Settings > Origins\nconst investments = [\n  { origin_id: 1, investment: 5000 },\n  { origin_id: 2, investment: 3000 },\n  { origin_id: 3, investment: 800 },\n  { origin_id: 4, investment: 0 }\n];\nreturn investments.map(i => ({ json: i }));"
+      },
+      "id": "b1e1ad66-0029-49f6-987f-7175f61079a4",
+      "name": "Investment Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        992,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const periodData  = $('Set Period').first().json;\nconst originsRaw  = $('Listar origens de oportunidades').all();\nconst dealsRaw    = $('Listar oportunidades').all();\nconst investItems = $('Investment Data').all();\n\n// Extract origins list\nconst origins = originsRaw.flatMap(i => Array.isArray(i.json?.data) ? i.json.data : []);\nconst originMap = Object.fromEntries(\n  origins.map(o => [String(o.id), o.name])\n);\n\n// Extract deals — each item is one page response\nconst deals = dealsRaw.flatMap(i => Array.isArray(i.json?.data) ? i.json.data : []);\n\n// Build investment map\nconst investMap = Object.fromEntries(\n  investItems.map(i => [String(i.json.origin_id), Number(i.json.investment)])\n);\n\n// Aggregate by origin_id\nconst agg = {};\nfor (const deal of deals) {\n  const oid = String(deal.origin_id ?? 'sem_origem');\n  if (!agg[oid]) agg[oid] = { leads: 0, won: 0, lost: 0, open: 0 };\n  agg[oid].leads++;\n  if      (deal.status === 1) agg[oid].won++;\n  else if (deal.status === 3) agg[oid].lost++;\n  else                        agg[oid].open++;\n}\n\n// Build result rows sorted by leads desc\nconst rows = Object.entries(agg).map(([oid, c]) => {\n  const investment = investMap[oid] ?? 0;\n  return {\n    origin_id:   isNaN(Number(oid)) ? oid : Number(oid),\n    origin_name:  `Origem: ${originMap[oid]?? oid}`,\n    leads:       c.leads,\n    won:         c.won,\n    lost:        c.lost,\n    open:        c.open,\n    investment,\n    cpl: c.leads > 0 ? +(investment / c.leads).toFixed(2) : null,\n    cac: c.won   > 0 ? +(investment / c.won).toFixed(2)   : null,\n  };\n}).sort((a, b) => b.leads - a.leads);\n\nconst totalLeads  = rows.reduce((s, r) => s + r.leads, 0);\nconst totalWon    = rows.reduce((s, r) => s + r.won, 0);\nconst totalInvest = rows.reduce((s, r) => s + r.investment, 0);\n\nreturn [{ json: {\n  period:           periodData.period,\n  start_date:       periodData.start_date,\n  end_date:         periodData.end_date,\n  total_leads:      totalLeads,\n  total_won:        totalWon,\n  total_investment: totalInvest,\n  overall_cpl:      totalLeads > 0 ? +(totalInvest / totalLeads).toFixed(2) : null,\n  overall_cac:      totalWon   > 0 ? +(totalInvest / totalWon).toFixed(2)   : null,\n  rows,\n}}];"
+      },
+      "id": "6324eb1e-c5bd-4ac6-a74d-d8aef67fff47",
+      "name": "Aggregate and CAC",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1232,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $input.first().json;\n\nconst R = (n) =>\n  n !== null && n !== undefined\n    ? 'R$ ' + Number(n).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })\n    : '—';\n\n// Discord embed tem limite de 25 campos\nconst visibleRows = d.rows.slice(0, 24);\nconst hiddenCount = d.rows.length - visibleRows.length;\n\nconst fields = visibleRows.map(r => ({\n  name: r.origin_name.slice(0, 256),\n  value: [\n    `Leads: **${r.leads}** | Vendas: **${r.won}** | Perdidas: **${r.lost}**`,\n    `Custo por Lead (CPL): ${R(r.cpl)} | Custo por Aquisição (CAC): ${R(r.cac)}`,\n    `Investimento: ${R(r.investment)}`,\n  ].join('\\n'),\n  inline: true\n}));\n\nif (hiddenCount > 0) {\n  fields.push({\n    name: `+${hiddenCount} outras origens`,\n    value: 'Veja o relatório completo no PipeRun',\n    inline: false\n  });\n}\n\nconst color = d.period === 'Mensal' ? 0x5865F2 : 0x57F287;\n\nconst payload = {\n  embeds: [{\n    title: `📊 Relatório ${d.period} — PipeRun`,\n    description: [\n      `📅 Período: **${d.start_date}** até **${d.end_date}**`,\n      ``,\n      `🎯 Leads Totais: **${d.total_leads}** | ✅ Vendas: **${d.total_won}**`,\n      `💰 Investimento Total: **${R(d.total_investment)}**`,\n      `📉 CPL Médio: **${R(d.overall_cpl)}** | 🏆 CAC Médio: **${R(d.overall_cac)}**`,\n    ].join('\\n'),\n    color,\n    fields,\n    footer: {\n      text: `Gerado automaticamente em ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`\n    }\n  }]\n};\n\nreturn [{ json: { payload } }];"
+      },
+      "id": "84c7cc13-e044-4851-b0d4-d3d69e23fa28",
+      "name": "Format Discord Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1472,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://discord.com/api/webhooks/1498740268688605264/KhcRie5PC6KEpsd8uVTHvIXLVkGTm2RcYgcgrsGjhLo2gMGuUaT-cYA6uDwjgEip59g6",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json.payload) }}",
+        "options": {}
+      },
+      "id": "53941661-4b60-4773-a1e8-23b088a1d242",
+      "name": "Send to Discord",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1712,
+        144
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "Origins",
+        "operation": "Listar Origem De Oportunidades",
+        "originslistarOrigemDeOportunidadesAdditionalFields": {
+          "show": 500
+        },
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-piperun-openapi.piperunApi",
+      "typeVersion": 1,
+      "position": [
+        512,
+        368
+      ],
+      "id": "aad9fc95-3bf5-4b93-a302-7a9311451a37",
+      "name": "Listar origens de oportunidades",
+      "credentials": {
+        "piperunApi": {
+          "id": "VINMcItngijWuyLD",
+          "name": "Piperun account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "Deals",
+        "operation": "Listar Oportunidades",
+        "dealslistarOportunidadesAdditionalFields": {
+          "show": 1000,
+          "created_at_start": "={{ $('Set Period').first().json.start_date }}",
+          "created_at_end": "={{ $('Set Period').first().json.end_date }}"
+        },
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-piperun-openapi.piperunApi",
+      "typeVersion": 1,
+      "position": [
+        768,
+        368
+      ],
+      "id": "0b45a94f-ecd3-4820-bfbc-c23c93f40450",
+      "name": "Listar oportunidades",
+      "credentials": {
+        "piperunApi": {
+          "id": "VINMcItngijWuyLD",
+          "name": "Piperun account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Weekly Trigger": {
+      "main": [
+        [
+          {
+            "node": "Skip if 1st of Month",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip if 1st of Month": {
+      "main": [
+        [
+          {
+            "node": "Set Period",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Monthly Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Period",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Period": {
+      "main": [
+        [
+          {
+            "node": "Listar origens de oportunidades",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Investment Data": {
+      "main": [
+        [
+          {
+            "node": "Aggregate and CAC",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate and CAC": {
+      "main": [
+        [
+          {
+            "node": "Format Discord Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Discord Message": {
+      "main": [
+        [
+          {
+            "node": "Send to Discord",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Listar origens de oportunidades": {
+      "main": [
+        [
+          {
+            "node": "Listar oportunidades",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Listar oportunidades": {
+      "main": [
+        [
+          {
+            "node": "Investment Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "e60d7bb3-9529-447d-8bd2-c38ac8814371",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "935c2f4725acde8cb79b06f0ff0e27e049923e148eee5bc90088a92b4e04555b"
+  },
+  "id": "nbtJMRlaZnxkzFRy",
+  "tags": []
+}

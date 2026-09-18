@@ -1,0 +1,365 @@
+{
+  "name": "PipeRun — Mídia Paga (FB + Google Ads)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1"
+            }
+          ]
+        }
+      },
+      "id": "6a3e2064-2102-4734-b64c-b9c5bf150f0d",
+      "name": "Weekly Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "a1b2c3d4-0001-0000-0000-00000000000a",
+              "leftValue": "={{ new Date().getDate() }}",
+              "rightValue": 1,
+              "operator": {
+                "type": "number",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "efb880d6-328c-4f28-bb8d-6284a7920c43",
+      "name": "Skip if 1st of Month",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [208, 0]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 1 * *"
+            }
+          ]
+        }
+      },
+      "id": "c61ca372-6ba5-46bb-abb2-5b4a85f337de",
+      "name": "Monthly Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 240]
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date();\nconst day = now.getDate();\nconst isMonthly = day === 1;\n\nlet startDate, endDate;\nif (isMonthly) {\n  const y = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();\n  const m = now.getMonth() === 0 ? 11 : now.getMonth() - 1;\n  startDate = new Date(y, m, 1);\n  endDate = new Date(y, m + 1, 0);\n} else {\n  endDate = new Date(now);\n  startDate = new Date(now);\n  startDate.setDate(now.getDate() - 7);\n}\n\nconst fmt = d => d.toISOString().split('T')[0];\n\nreturn [{ json: {\n  period: isMonthly ? 'Mensal' : 'Semanal',\n  start_date: fmt(startDate),\n  end_date: fmt(endDate)\n}}];"
+      },
+      "id": "ac560fa9-803f-4d4f-9645-62d9d5168aa8",
+      "name": "Set Period",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [256, 240]
+    },
+    {
+      "parameters": {
+        "content": "## 📣 Configuração — Mídia Paga\n\n### Facebook Ads\n1. Crie credencial **Query Auth** nomeada `Facebook Ads Access Token`\n   - **Name:** `access_token` | **Value:** System User Token (permissão `ads_read`)\n2. Defina variável de workflow `FB_AD_ACCOUNT_ID` → ID da conta **sem** `act_` (ex: `123456789`)\n\n### Google Ads\n1. Crie credencial **OAuth2** nomeada `Google Ads OAuth2`\n   - Scope: `https://www.googleapis.com/auth/adwords`\n2. Defina variáveis de workflow:\n   - `GOOGLE_ADS_CUSTOMER_ID` → ID do cliente sem traços (ex: `1234567890`)\n   - `GOOGLE_ADS_DEV_TOKEN` → Developer Token do Google Ads API Center\n\n> **Variáveis:** abra o workflow → Settings → Variables",
+        "height": 340,
+        "width": 500,
+        "color": 5
+      },
+      "id": "note0001-0000-4000-a000-000000000001",
+      "name": "Setup Instructions",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [512, 480]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ 'https://graph.facebook.com/v19.0/act_' + ($vars.FB_AD_ACCOUNT_ID ?? 'SEU_ACCOUNT_ID') + '/insights' }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fields",
+              "value": "campaign_name,spend,actions"
+            },
+            {
+              "name": "time_range",
+              "value": "={{ JSON.stringify({since: $('Set Period').first().json.start_date, until: $('Set Period').first().json.end_date}) }}"
+            },
+            {
+              "name": "level",
+              "value": "campaign"
+            },
+            {
+              "name": "limit",
+              "value": "500"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fb000001-0000-4000-a000-000000000001",
+      "name": "Get FB Ad Insights",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [512, 180],
+      "credentials": {
+        "httpQueryAuth": {
+          "id": "SETUP_FACEBOOK_CRED",
+          "name": "Facebook Ads Access Token"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nif (raw.error) throw new Error(`Facebook API error: ${raw.error.message}`);\nconst campaigns = raw.data || [];\n\nconst leadTypes = [\n  'lead',\n  'onsite_conversion.lead_grouped',\n  'offsite_conversion.fb_pixel_lead',\n  'contact',\n];\n\nreturn campaigns\n  .map(c => {\n    const actions = c.actions || [];\n    const leads = leadTypes.reduce((sum, t) => {\n      const a = actions.find(x => x.action_type === t);\n      return sum + (a ? parseFloat(a.value) : 0);\n    }, 0);\n    const spend = parseFloat(c.spend || 0);\n    return { json: {\n      source: 'Facebook Ads',\n      campaign: c.campaign_name || 'Unknown',\n      spend,\n      leads: Math.round(leads),\n      cpl: leads > 0 ? parseFloat((spend / leads).toFixed(2)) : null,\n    }};\n  })\n  .filter(i => i.json.spend > 0);"
+      },
+      "id": "fb000002-0000-4000-a000-000000000002",
+      "name": "Parse FB Ad Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [768, 180]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ 'https://googleads.googleapis.com/v16/customers/' + ($vars.GOOGLE_ADS_CUSTOMER_ID ?? 'SEU_CUSTOMER_ID') + '/googleAds:search' }}",
+        "authentication": "oAuth2Api",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "developer-token",
+              "value": "={{ $vars.GOOGLE_ADS_DEV_TOKEN ?? 'SEU_DEVELOPER_TOKEN' }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify({query: `SELECT campaign.name, metrics.cost_micros, metrics.conversions FROM campaign WHERE segments.date BETWEEN '${$('Set Period').first().json.start_date}' AND '${$('Set Period').first().json.end_date}' AND campaign.status != 'REMOVED'`}) }}",
+        "options": {}
+      },
+      "id": "ga000001-0000-4000-a000-000000000001",
+      "name": "Get Google Ads Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [512, 340],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "SETUP_GOOGLE_CRED",
+          "name": "Google Ads OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nif (raw.error) throw new Error(`Google Ads API error: ${JSON.stringify(raw.error)}`);\nconst results = raw.results || [];\n\nreturn results\n  .map(r => {\n    const spend = (r.metrics?.costMicros || 0) / 1_000_000;\n    const leads = r.metrics?.conversions || 0;\n    return { json: {\n      source: 'Google Ads',\n      campaign: r.campaign?.name || 'Unknown',\n      spend: parseFloat(spend.toFixed(2)),\n      leads: Math.round(leads),\n      cpl: leads > 0 ? parseFloat((spend / leads).toFixed(2)) : null,\n    }};\n  })\n  .filter(i => i.json.spend > 0);"
+      },
+      "id": "ga000002-0000-4000-a000-000000000002",
+      "name": "Parse Google Ads Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [768, 340]
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "options": {}
+      },
+      "id": "me000001-0000-4000-a000-000000000001",
+      "name": "Merge Ad Reports",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [992, 260]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all().map(i => i.json);\nconst period = $('Set Period').first().json;\n\nconst R = n => n != null\n  ? 'R$ ' + Number(n).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })\n  : '—';\n\nconst fb = items.filter(i => i.source === 'Facebook Ads');\nconst ga = items.filter(i => i.source === 'Google Ads');\nconst sumOf = (arr, k) => arr.reduce((s, i) => s + Number(i[k] || 0), 0);\n\nconst totalFbSpend = sumOf(fb, 'spend');\nconst totalFbLeads = sumOf(fb, 'leads');\nconst totalGSpend  = sumOf(ga, 'spend');\nconst totalGLeads  = sumOf(ga, 'leads');\nconst totalSpend   = totalFbSpend + totalGSpend;\nconst totalLeads   = totalFbLeads + totalGLeads;\n\nconst campFields = arr => arr.slice(0, 10).map(c => ({\n  name: c.campaign.slice(0, 256),\n  value: `Leads: **${c.leads}** | Gasto: **${R(c.spend)}** | CPL: **${R(c.cpl)}**`,\n  inline: true,\n}));\n\nconst fields = [];\nif (fb.length) {\n  fields.push({\n    name: '📘 Facebook Ads',\n    value: `Gasto: **${R(totalFbSpend)}** | Leads: **${totalFbLeads}** | CPL: **${totalFbLeads > 0 ? R(totalFbSpend / totalFbLeads) : '—'}**`,\n    inline: false,\n  });\n  fields.push(...campFields(fb));\n}\nif (ga.length) {\n  fields.push({\n    name: '🟢 Google Ads',\n    value: `Gasto: **${R(totalGSpend)}** | Leads: **${totalGLeads}** | CPL: **${totalGLeads > 0 ? R(totalGSpend / totalGLeads) : '—'}**`,\n    inline: false,\n  });\n  fields.push(...campFields(ga));\n}\n\nconst payload = {\n  embeds: [{\n    title: `📣 Mídia Paga — ${period.period}`,\n    description: [\n      `📅 Período: **${period.start_date}** até **${period.end_date}**`,\n      ``,\n      `💰 Investimento Total: **${R(totalSpend)}**`,\n      `🎯 Leads Totais: **${totalLeads}**`,\n      `📉 CPL Médio: **${totalLeads > 0 ? R(totalSpend / totalLeads) : '—'}**`,\n    ].join('\\n'),\n    color: 0xEB4034,\n    fields: fields.slice(0, 25),\n    footer: {\n      text: `Gerado em ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`,\n    },\n  }],\n};\n\nreturn [{ json: { payload } }];"
+      },
+      "id": "fo000001-0000-4000-a000-000000000001",
+      "name": "Format Ad Spend Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1232, 260]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://discord.com/api/webhooks/1498740268688605264/KhcRie5PC6KEpsd8uVTHvIXLVkGTm2RcYgcgrsGjhLo2gMGuUaT-cYA6uDwjgEip59g6",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json.payload) }}",
+        "options": {}
+      },
+      "id": "di000002-0000-4000-a000-000000000002",
+      "name": "Send Ad Report to Discord",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1472, 260]
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all();"
+      },
+      "id": "rd000001-0000-4000-a000-000000000001",
+      "name": "Return Spend Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [992, 460],
+      "notes": "Terminal for sub-workflow callers. Emits raw spend items ({source,campaign,spend,leads,cpl}). Ignored on standalone runs."
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Weekly Trigger": {
+      "main": [
+        [
+          {
+            "node": "Skip if 1st of Month",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip if 1st of Month": {
+      "main": [
+        [
+          {
+            "node": "Set Period",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Monthly Trigger": {
+      "main": [
+        [
+          {
+            "node": "Set Period",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Period": {
+      "main": [
+        [
+          {
+            "node": "Get FB Ad Insights",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Google Ads Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get FB Ad Insights": {
+      "main": [
+        [
+          {
+            "node": "Parse FB Ad Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse FB Ad Data": {
+      "main": [
+        [
+          {
+            "node": "Merge Ad Reports",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Google Ads Report": {
+      "main": [
+        [
+          {
+            "node": "Parse Google Ads Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Google Ads Data": {
+      "main": [
+        [
+          {
+            "node": "Merge Ad Reports",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Ad Reports": {
+      "main": [
+        [
+          {
+            "node": "Format Ad Spend Message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Return Spend Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Ad Spend Message": {
+      "main": [
+        [
+          {
+            "node": "Send Ad Report to Discord",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "ad000001-0000-4000-a000-000000000001",
+  "meta": {
+    "instanceId": "935c2f4725acde8cb79b06f0ff0e27e049923e148eee5bc90088a92b4e04555b"
+  },
+  "id": "adSpendWorkflow01",
+  "tags": []
+}

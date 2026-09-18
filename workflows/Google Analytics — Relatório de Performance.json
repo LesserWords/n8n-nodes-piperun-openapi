@@ -1,0 +1,183 @@
+{
+  "name": "Google Analytics — Relatório de Performance",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 9 * * 1" }]
+        }
+      },
+      "id": "ga3-0001-0000-4000-a000-000000000001",
+      "name": "Weekly Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 9 1 * *" }]
+        }
+      },
+      "id": "ga3-0002-0000-4000-a000-000000000001",
+      "name": "Monthly Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 240]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "ga3-cond-0001",
+              "leftValue": "={{ new Date().getDate() }}",
+              "rightValue": 1,
+              "operator": { "type": "number", "operation": "notEquals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ga3-0003-0000-4000-a000-000000000001",
+      "name": "Skip if 1st of Month",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [208, 0]
+    },
+    {
+      "parameters": {
+        "jsCode": "const now = new Date();\nconst day = now.getDate();\nconst isMonthly = day === 1;\n\nlet startDate, endDate;\nif (isMonthly) {\n  const y = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();\n  const m = now.getMonth() === 0 ? 11 : now.getMonth() - 1;\n  startDate = new Date(y, m, 1);\n  endDate   = new Date(y, m + 1, 0);\n} else {\n  endDate   = new Date(now);\n  startDate = new Date(now);\n  startDate.setDate(now.getDate() - 7);\n}\n\nconst fmt = d => d.toISOString().split('T')[0];\n\nreturn [{ json: {\n  period:     isMonthly ? 'Mensal' : 'Semanal',\n  start_date: fmt(startDate),\n  end_date:   fmt(endDate)\n}}];"
+      },
+      "id": "ga3-0004-0000-4000-a000-000000000001",
+      "name": "Set Period",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [512, 120]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ⚠️ EDIT: one entry per GA4 property\n// property_id: from GA4 Admin > Property Settings (numeric ID only, e.g. '123456789')\n// label:       display name shown in Discord embed title\n// webhook_url: Discord webhook URL for this property's channel\nconst properties = [\n  {\n    property_id: 'SEU_PROPERTY_ID_1',\n    label:       'Site Principal',\n    webhook_url: 'https://discord.com/api/webhooks/SEU_WEBHOOK_1'\n  },\n  // {\n  //   property_id: 'SEU_PROPERTY_ID_2',\n  //   label:       'Site Secundário',\n  //   webhook_url: 'https://discord.com/api/webhooks/SEU_WEBHOOK_2'\n  // },\n];\nreturn properties.map(p => ({ json: p }));"
+      },
+      "id": "ga3-0005-0000-4000-a000-000000000001",
+      "name": "GA Properties Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [768, 120]
+    },
+    {
+      "parameters": {
+        "propertyId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.property_id }}"
+        },
+        "metricsGA4": {
+          "metricValues": [
+            { "listName": "totalUsers" },
+            { "listName": "sessions" },
+            { "listName": "screenPageViews" },
+            { "listName": "engagementRate" },
+            { "listName": "eventCount" },
+            { "listName": "userEngagementDuration" }
+          ]
+        },
+        "dimensionsGA4": { "dimensionValues": [] },
+        "additionalFields": {
+          "dateRangesGA4": {
+            "dateRanges": [
+              {
+                "startDate": "={{ $('Set Period').first().json.start_date }}",
+                "endDate":   "={{ $('Set Period').first().json.end_date }}"
+              }
+            ]
+          }
+        }
+      },
+      "id": "ga3-0006-0000-4000-a000-000000000001",
+      "name": "Google Analytics",
+      "type": "n8n-nodes-base.googleAnalytics",
+      "typeVersion": 2,
+      "position": [1024, 120],
+      "credentials": {
+        "googleAnalyticsOAuth2": {
+          "id": "SETUP_GA_CRED",
+          "name": "Google Analytics OAuth2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const gaResults   = $input.all();\nconst propConfigs = $('GA Properties Config').all();\nconst period      = $('Set Period').first().json;\n\nconst Num = (n, dec) => n != null\n  ? Number(n).toLocaleString('pt-BR', { minimumFractionDigits: dec ?? 0, maximumFractionDigits: dec ?? 0 })\n  : '—';\n\nconst results = [];\nfor (let i = 0; i < gaResults.length; i++) {\n  const raw  = gaResults[i].json;\n  const prop = (propConfigs[i] ?? propConfigs[0]).json;\n\n  // Handle both n8n-normalised format (direct fields) and raw GA4 API response ({rows, metricHeaders})\n  let m;\n  if (Array.isArray(raw.rows)) {\n    const row = raw.rows[0] ?? { metricValues: [] };\n    m = {};\n    (raw.metricHeaders ?? []).forEach((h, j) => { m[h.name] = row.metricValues[j]?.value ?? '0'; });\n  } else {\n    m = raw;\n  }\n\n  const totalUsers  = parseInt(m.totalUsers            || 0);\n  const sessions    = parseInt(m.sessions               || 0);\n  const pageViews   = parseInt(m.screenPageViews        || 0);\n  const eventCount  = parseInt(m.eventCount             || 0);\n  const engRate     = parseFloat(m.engagementRate       || 0) * 100;\n  const engDuration = parseFloat(m.userEngagementDuration || 0);\n  const avgEngSec   = sessions > 0 ? Math.round(engDuration / sessions) : 0;\n\n  const color = period.period === 'Mensal' ? 0x5865F2 : 0x57F287;\n\n  const payload = {\n    embeds: [{\n      title: `📊 Google Analytics — ${prop.label} — ${period.period}`,\n      description: `📅 Período: **${period.start_date}** até **${period.end_date}**`,\n      color,\n      fields: [\n        { name: '👥 Usuários',             value: `**${Num(totalUsers)}**`,       inline: true },\n        { name: '🔁 Sessões',              value: `**${Num(sessions)}**`,         inline: true },\n        { name: '📄 Pageviews',            value: `**${Num(pageViews)}**`,        inline: true },\n        { name: '⚡ Engajamento',          value: `**${engRate.toFixed(1)}%**`,   inline: true },\n        { name: '🎯 Eventos',              value: `**${Num(eventCount)}**`,       inline: true },\n        { name: '⏱️ Tempo Médio Eng.',     value: `**${Num(avgEngSec)}s**`,       inline: true },\n      ],\n      footer: {\n        text: `Gerado em ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`\n      }\n    }]\n  };\n\n  results.push({ json: { payload, webhook_url: prop.webhook_url } });\n}\nreturn results;"
+      },
+      "id": "ga3-0007-0000-4000-a000-000000000001",
+      "name": "Format GA Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1280, 120]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.webhook_url }}",
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "={{ JSON.stringify($json.payload) }}",
+        "options": {}
+      },
+      "id": "ga3-0008-0000-4000-a000-000000000001",
+      "name": "Send to Discord",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1536, 120]
+    },
+    {
+      "parameters": {
+        "content": "## 📊 Configuração — Google Analytics\n\n1. Crie credencial **Google Analytics OAuth2** nomeada `Google Analytics OAuth2`\n   - Escopo: `https://www.googleapis.com/auth/analytics.readonly`\n\n2. No nó **GA Properties Config**, adicione uma entrada por propriedade GA4:\n   - `property_id` → ID numérico da propriedade (GA4 Admin > Property Settings)\n   - `label` → nome exibido no título do embed no Discord\n   - `webhook_url` → webhook do canal Discord destino\n\n3. Para adicionar mais propriedades, descomente e duplique o bloco no nó de config.\n\n> **Nota:** `dateRangesGA4` em `additionalFields` controla o período consultado.\n> Se o nó GA da sua versão do n8n não suportar este campo, configure o intervalo\n> manualmente no nó ou use um HTTP Request direto à GA4 Data API.",
+        "height": 280,
+        "width": 520,
+        "color": 5
+      },
+      "id": "ga3-note-0001-4000-a000-000000000001",
+      "name": "Setup Instructions",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [0, 480]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Weekly Trigger": {
+      "main": [[{ "node": "Skip if 1st of Month", "type": "main", "index": 0 }]]
+    },
+    "Skip if 1st of Month": {
+      "main": [[{ "node": "Set Period", "type": "main", "index": 0 }]]
+    },
+    "Monthly Trigger": {
+      "main": [[{ "node": "Set Period", "type": "main", "index": 0 }]]
+    },
+    "Set Period": {
+      "main": [[{ "node": "GA Properties Config", "type": "main", "index": 0 }]]
+    },
+    "GA Properties Config": {
+      "main": [[{ "node": "Google Analytics", "type": "main", "index": 0 }]]
+    },
+    "Google Analytics": {
+      "main": [[{ "node": "Format GA Message", "type": "main", "index": 0 }]]
+    },
+    "Format GA Message": {
+      "main": [[{ "node": "Send to Discord", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "ga3-ver-0001-4000-a000-000000000001",
+  "meta": {
+    "instanceId": "935c2f4725acde8cb79b06f0ff0e27e049923e148eee5bc90088a92b4e04555b"
+  },
+  "id": "gaReportWorkflow01",
+  "tags": []
+}
