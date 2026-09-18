@@ -84,3 +84,6 @@ npm install
 - The `Piperun` node uses OpenAPI-driven property generation (`@devlikeapro/n8n-openapi-node`).
 
 ⚠️ Not official, i made this because i needed it.
+
+
+- [https://npmx.dev/package/n8n-nodes-piperun-openapi](https://npmx.dev/package/n8n-nodes-piperun-openapi)
