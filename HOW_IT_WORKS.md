@@ -2,7 +2,7 @@
 
 This project is an **n8n community node** that integrates [PipeRun CRM](https://pipe.run) into n8n workflows.
 
-Instead of manually writing code for every single CRM endpoint (over 200 operations), this node translates PipeRun's official **OpenAPI 3.0 specification** directly into native n8n UI parameters and declarative HTTP requests.
+Instead of manually writing code for every single CRM endpoint (over 200 operations), this node translates PipeRun's official **OpenAPI 3.1 specification** directly into native n8n UI parameters and declarative HTTP requests.
 
 ---
 
@@ -25,10 +25,10 @@ graph TD
 
 ### 1. Schema Management (`schemas/` & `scripts/`)
 
-- **PipeRun OpenAPI Spec**: PipeRun publishes its API documentation using an OpenAPI 3.0 schema.
+- **PipeRun OpenAPI Spec**: PipeRun publishes its CRM and CXM (Atendimentos) API documentation on `developers.pipe.run` using OpenAPI 3.1 schemas.
 - **Fetch Script (`npm run getPiperunSchema`)**:
-  - Downloads the latest schema from PipeRun.
-  - Archives the previous file with a date stamp (e.g., `YYYYMMDD.Piperun.openapi.json`) to track upstream API changes.
+  - Attempts a direct OpenAPI download first; if disabled on PipeRun's ReadMe portal, automatically reconstructs the complete OpenAPI 3.1 specification by extracting endpoint schemas from the portal's SSR reference pages and merging public ReadMe API registries (such as `atendimentos.openapi.json`).
+  - Validates the fetched schema *before* archiving the previous `schemas/latest.Piperun.openapi.json` with a date stamp (e.g., `YYYYMMDD.Piperun.openapi.json`) so failed network requests never leave `latest.Piperun.openapi.json` missing.
   - Saves the new version as `schemas/latest.Piperun.openapi.json`.
 - **Organize Script (`npm run organizePiperunSchemaPaths`)**:
   - Sorts all API paths alphabetically by tag, URL category, and route.
@@ -42,7 +42,7 @@ When the TypeScript code compiles, it processes the schema:
 
 1. **Sanitization**: Fixes quirks in the upstream OpenAPI file (such as empty or unsupported request bodies on certain DELETE routes).
 2. **OpenAPI Parser (`@devlikeapro/n8n-openapi-node`)**:
-   - Converts OpenAPI **Tags** into n8n **Resources** (e.g., Accounts, Deals, Activities).
+   - Converts OpenAPI **Tags** into n8n **Resources** (e.g., Accounts, Deals, Activities, Talk).
    - Converts OpenAPI **Operations** into n8n **Actions/Operations** (e.g., Create Deal, List Accounts).
    - Converts URL/query parameters and JSON request bodies into n8n input fields.
 
@@ -95,3 +95,4 @@ Before n8n fires the HTTP request, the **`piperunPreSend`** hook runs:
 | `scripts/organizePiperunSchemaPaths.mjs` | Alphabetically sorts schema endpoints for clean Git diffs. |
 | `credentials/PiperunApi.credentials.ts` | Handles PipeRun user token authentication. |
 | `nodes/PiperunApi/PiperunApi.node.ts` | Main node definition: builds the UI, adds custom fields, and registers the `preSend` hook. |
+| `CHANGELOG.md` | Tracks version history, newly added endpoints, and upstream breaking schema changes. |

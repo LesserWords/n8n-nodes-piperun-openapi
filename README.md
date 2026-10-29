@@ -4,7 +4,7 @@ PipeRun CRM integration for n8n.
 
 This repository is a conversion of PipeRun's official OpenAPI specification into an n8n node, with credential support for token authentication.
 
-For an overview of how the generator and runtime work, see [How This Project Works](HOW_IT_WORKS.md).
+For an overview of how the generator and runtime work, see [How This Project Works](HOW_IT_WORKS.md). For release history and breaking schema updates, see [CHANGELOG.md](CHANGELOG.md).
 
 For npm release, this package needs to be published under a different name because `n8n-nodes-piperun` is already taken.
 
@@ -56,8 +56,8 @@ npm install
 #### Schema Management
 
 - **`npm run getPiperunSchema`**:
-  - Fetches the latest official OpenAPI specification from PipeRun (`https://developers.pipe.run/openapi/...`).
-  - Archives the previous `schemas/latest.Piperun.openapi.json` to a date-stamped file (`schemas/YYYYMMDD.Piperun.openapi.json`).
+  - Fetches the latest official OpenAPI 3.1 specification from PipeRun's developer portal (`developers.pipe.run`), automatically reconstructing the spec from SSR reference pages and ReadMe API registries when direct OpenAPI downloads are disabled.
+  - Validates the fetched schema first before archiving the previous `schemas/latest.Piperun.openapi.json` to a date-stamped file (`schemas/YYYYMMDD.Piperun.openapi.json`).
   - Saves the updated specification as `schemas/latest.Piperun.openapi.json` with fetch timestamp metadata.
   - Automatically runs `organizePiperunSchemaPaths` on the newly downloaded schema.
 - **`npm run organizePiperunSchemaPaths`**:
